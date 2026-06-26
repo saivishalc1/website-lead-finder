@@ -23,7 +23,9 @@ import datetime
 import html
 import json
 import os
+import re
 import sys
+import urllib.parse
 
 
 # -----------------------------------------------------------------------------
@@ -215,6 +217,16 @@ render();
 def render_html(leads, is_demo, source_label, attribution_html=""):
     """Turn the leads into the final HTML string."""
     # Keep only the fields the page needs, with short keys (smaller file).
+    def maps_link(r):
+        """Make 'Open' land on the business listing. If the stored URL is a bare
+        coordinate search (only drops a pin), rewrite it to a name search."""
+        url = r.get("google_maps_url", "")
+        name = r.get("business_name", "")
+        loc = r.get("address", "") or r.get("search_area", "")
+        if name and (not url or re.search(r"query=-?\d+\.\d+(%2C|,)-?\d+\.\d+", url)):
+            return "https://www.google.com/maps/search/?api=1&query=" + urllib.parse.quote(f"{name}, {loc}")
+        return url
+
     slim = [{
         "name": r.get("business_name", ""),
         "niche": r.get("niche", ""),
@@ -223,7 +235,7 @@ def render_html(leads, is_demo, source_label, attribution_html=""):
         "rating": r.get("rating", ""),
         "reviews": r.get("review_count", 0),
         "score": r.get("lead_score", 0),
-        "maps": r.get("google_maps_url", ""),
+        "maps": maps_link(r),
     } for r in leads]
 
     # json.dumps safely escapes the data; the "</" guard prevents a stray

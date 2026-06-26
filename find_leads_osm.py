@@ -160,16 +160,14 @@ def element_to_lead(element, state):
     if not niche:
         return None
 
-    lat = element.get("lat") or element.get("center", {}).get("lat")
-    lon = element.get("lon") or element.get("center", {}).get("lon")
-    if lat and lon:
-        maps = f"https://www.google.com/maps/search/?api=1&query={lat}%2C{lon}"
-    else:
-        maps = "https://www.google.com/maps/search/?api=1&query=" + urllib.parse.quote(f"{name} {state}")
-
     city = tags.get("addr:city", "")
     street_line = " ".join(b for b in [tags.get("addr:housenumber", ""), tags.get("addr:street", "")] if b)
     address = ", ".join(b for b in [street_line, city, state, tags.get("addr:postcode", "")] if b)
+
+    # "Open" should land on the business's Google listing/profile -> search by
+    # NAME + location, not raw coordinates (which only drop a blank map pin).
+    place_query = ", ".join(b for b in [name, address or f"{city} {state}".strip()] if b)
+    maps = "https://www.google.com/maps/search/?api=1&query=" + urllib.parse.quote(place_query)
 
     place = {
         "id": f"osm-{element.get('type')}-{element.get('id')}",
