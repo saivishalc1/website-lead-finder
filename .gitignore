@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+
+# Generated lead data — kept OUT of the repo. The published site is docs/index.html
+# (which embeds the data); the raw CSVs stay local.
+us_website_leads.csv
+us_website_leads_demo.csv
+us_website_leads_osm.csv
+*.snapshot.csv
+
+# Local build artifact (the PUBLISHED dashboard lives at docs/index.html)
+dashboard.html
+
+# Logs
+osm_run.log
+
+# Virtual environments
+venv/
+.venv/

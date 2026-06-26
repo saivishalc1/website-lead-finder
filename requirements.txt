@@ -1,0 +1,3 @@
+# The only dependency this script needs.
+# Install with:  pip3 install -r requirements.txt
+requests>=2.28
