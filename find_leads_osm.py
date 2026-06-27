@@ -51,7 +51,7 @@ OVERPASS_ENDPOINTS = [
 
 # CSV columns (must match find_leads.py's output so the dashboard works).
 FIELDNAMES = [
-    "business_name", "niche", "phone", "address", "rating", "review_count",
+    "business_name", "niche", "phone", "email", "address", "rating", "review_count",
     "google_maps_url", "website_status", "lead_score", "place_id", "search_area",
 ]
 
@@ -67,24 +67,42 @@ OSM_NICHE_TAGS = {
     "handyman services": [("craft", "handyman")],
     "tree service": [("craft", "tree_service")],
     "fencing": [("craft", "fencing")],
+    # --- broadened set: more service businesses that commonly lack a website ---
+    "auto repair": [("shop", "car_repair")],
+    "car wash": [("amenity", "car_wash")],
+    "carpentry": [("craft", "carpenter"), ("craft", "joiner")],
+    "flooring": [("craft", "floorer")],
+    "tiling": [("craft", "tiler")],
+    "masonry": [("craft", "stonemason"), ("craft", "plasterer")],
+    "windows & glass": [("craft", "window_construction"), ("craft", "glaziery")],
+    "locksmith": [("craft", "locksmith"), ("shop", "locksmith")],
+    "chimney sweep": [("craft", "chimney_sweep")],
+    "catering": [("craft", "caterer")],
+    "photography": [("craft", "photographer")],
+    "hair & beauty": [("shop", "hairdresser"), ("shop", "beauty")],
+    "pet grooming": [("shop", "pet_grooming")],
+    "metalwork": [("craft", "metal_construction"), ("craft", "blacksmith")],
+    "insulation": [("craft", "insulation")],
+    "sign making": [("craft", "signmaker")],
 }
 
 # Reverse lookup: (tag_key, tag_value) -> niche name.
 TAG_TO_NICHE = {tag: niche for niche, tags in OSM_NICHE_TAGS.items() for tag in tags}
 
+# Flat, de-duplicated list of (key, value) tag selectors to query.
+SELECTOR_PAIRS = list(TAG_TO_NICHE.keys())
 
-def build_query(state):
-    """Build one Overpass query for all our trade tags inside a US state."""
-    selectors, seen = [], set()
-    for tags in OSM_NICHE_TAGS.values():
-        for key, value in tags:
-            if (key, value) in seen:
-                continue
-            seen.add((key, value))
-            selectors.append(f'  nwr["{key}"="{value}"](area.a);')
-    return ('[out:json][timeout:120];\n'
+# Query tags in small chunks per state so each Overpass request stays light --
+# one heavy all-in-one query tends to time out (504) on big states.
+CHUNK_SIZE = 10
+
+
+def build_query(state, pairs):
+    """Build one Overpass query for a chunk of (key, value) tags inside a US state."""
+    selectors = "\n".join(f'  nwr["{key}"="{value}"](area.a);' for key, value in pairs)
+    return ('[out:json][timeout:180];\n'
             f'area["name"="{state}"]["admin_level"="4"]->.a;\n'
-            '(\n' + "\n".join(selectors) + '\n);\n'
+            '(\n' + selectors + '\n);\n'
             'out center tags;')
 
 
@@ -169,11 +187,13 @@ def element_to_lead(element, state):
     place_query = ", ".join(b for b in [name, address or f"{city} {state}".strip()] if b)
     maps = "https://www.google.com/maps/search/?api=1&query=" + urllib.parse.quote(place_query)
 
+    email = tags.get("email") or tags.get("contact:email") or ""
     place = {
         "id": f"osm-{element.get('type')}-{element.get('id')}",
         "displayName": {"text": name},
         "formattedAddress": address or f"{city}, {state}".strip(", "),
         "nationalPhoneNumber": phone,
+        "email": email,
         "rating": "",            # OSM has no ratings
         "userRatingCount": 0,    # OSM has no review counts
         "businessStatus": "OPERATIONAL",
@@ -192,26 +212,36 @@ def write_csv(rows, path):
 
 
 def fetch_state(state, rows, seen_ids, seen_name_phone):
-    """Query one state and append its qualifying leads to `rows`."""
-    data = overpass(build_query(state))
-    elements = data.get("elements", [])
-    added = 0
-    for element in elements:
-        osm_id = f"osm-{element.get('type')}-{element.get('id')}"
-        if osm_id in seen_ids:
+    """Query one state in light chunks and append its qualifying leads to `rows`."""
+    total_elements, added, chunk_failures = 0, 0, 0
+    for start in range(0, len(SELECTOR_PAIRS), CHUNK_SIZE):
+        subset = SELECTOR_PAIRS[start:start + CHUNK_SIZE]
+        try:
+            data = overpass(build_query(state, subset))
+        except Exception as error:
+            chunk_failures += 1
+            print(f"[chunk failed: {error}]", end=" ", flush=True)
             continue
-        lead = element_to_lead(element, state)
-        if not lead:
-            continue
-        digits = "".join(ch for ch in lead["phone"] if ch.isdigit())
-        name_phone = (lead["business_name"].lower(), digits)
-        if name_phone in seen_name_phone:
-            continue
-        seen_ids.add(osm_id)
-        seen_name_phone.add(name_phone)
-        rows.append(lead)
-        added += 1
-    return len(elements), added
+        for element in data.get("elements", []):
+            total_elements += 1
+            osm_id = f"osm-{element.get('type')}-{element.get('id')}"
+            if osm_id in seen_ids:
+                continue
+            lead = element_to_lead(element, state)
+            if not lead:
+                continue
+            digits = "".join(ch for ch in lead["phone"] if ch.isdigit())
+            name_phone = (lead["business_name"].lower(), digits)
+            if name_phone in seen_name_phone:
+                continue
+            seen_ids.add(osm_id)
+            seen_name_phone.add(name_phone)
+            rows.append(lead)
+            added += 1
+        time.sleep(0.5)  # small pause between chunk requests
+    if chunk_failures and total_elements == 0:
+        raise RuntimeError(f"all {chunk_failures} query chunks failed")
+    return total_elements, added
 
 
 def main():

@@ -106,6 +106,7 @@ PAGE_TEMPLATE = """<!DOCTYPE html>
   <h1>Lead Finder &mdash; Businesses With No Website</h1>
   <p class="sub">__SOURCE__ &middot; generated __DATE__</p>
   __BANNER__
+  __CAPNOTE__
   <div class="stats" id="stats"></div>
   <div class="controls">
     <input type="search" id="q" placeholder="Search name, phone, or city...">
@@ -162,6 +163,7 @@ function rowHtml(l){
   const s = num(l.score), b = bucket(s);
   const tel = String(l.phone||"").replace(/[^0-9+]/g,"");
   const phone = l.phone ? `<a href="tel:${esc(tel)}">${esc(l.phone)}</a>` : "&mdash;";
+  const email = l.email ? `<div style="font-size:12px"><a href="mailto:${esc(l.email)}">${esc(l.email)}</a></div>` : "";
   const map = l.maps ? `<a href="${esc(l.maps)}" target="_blank" rel="noopener">Open</a>` : "&mdash;";
   const rating = (l.rating==="" || l.rating==null) ? "&mdash;" : esc(l.rating);
   return `<tr>
@@ -170,7 +172,7 @@ function rowHtml(l){
     <td>${esc(l.loc)}</td>
     <td class="hide-sm">${rating}</td>
     <td class="hide-sm">${esc(l.reviews)}</td>
-    <td>${phone}</td>
+    <td>${phone}${email}</td>
     <td>${map}</td>
   </tr>`;
 }
@@ -214,7 +216,7 @@ render();
 """
 
 
-def render_html(leads, is_demo, source_label, attribution_html=""):
+def render_html(leads, is_demo, source_label, attribution_html="", total_count=None):
     """Turn the leads into the final HTML string."""
     # Keep only the fields the page needs, with short keys (smaller file).
     def maps_link(r):
@@ -232,6 +234,7 @@ def render_html(leads, is_demo, source_label, attribution_html=""):
         "niche": r.get("niche", ""),
         "loc": r.get("search_area", "") or r.get("address", ""),
         "phone": r.get("phone", ""),
+        "email": r.get("email", ""),
         "rating": r.get("rating", ""),
         "reviews": r.get("review_count", 0),
         "score": r.get("lead_score", 0),
@@ -258,6 +261,11 @@ def render_html(leads, is_demo, source_label, attribution_html=""):
     page = page.replace("__SOURCE__", html.escape(source_label))
     page = page.replace("__DATE__", datetime.date.today().isoformat())
     page = page.replace("__ATTRIBUTION__", attribution_html)
+    capnote = ""
+    if total_count and total_count > len(leads):
+        capnote = (f'<p class="demo-banner">Showing the top <b>{len(leads):,}</b> highest-scoring '
+                   f'leads of <b>{total_count:,}</b> total &mdash; the full list is in the CSV.</p>')
+    page = page.replace("__CAPNOTE__", capnote)
     return page
 
 
@@ -273,6 +281,8 @@ def main():
     parser.add_argument("--states", help='Sample data only: limit to these states, e.g. "NJ,NY".')
     parser.add_argument("--out", default="dashboard.html", help="Output HTML file (default dashboard.html).")
     parser.add_argument("--no-open", action="store_true", help="Build the file but don't open a browser.")
+    parser.add_argument("--max-rows", type=int, default=2000,
+                        help="Max leads to embed in the page (top by score; default 2000).")
     args = parser.parse_args()
 
     # Decide where the leads come from.
@@ -291,6 +301,9 @@ def main():
     # Best leads first.
     leads.sort(key=lambda r: (int(float(r.get("lead_score") or 0)),
                               int(float(r.get("review_count") or 0))), reverse=True)
+    total_count = len(leads)
+    if total_count > args.max_rows:        # keep the page fast for huge datasets
+        leads = leads[:args.max_rows]
 
     # OpenStreetMap data must be credited (ODbL license) when published.
     attribution = ""
@@ -301,7 +314,7 @@ def main():
                        '<a href="https://opendatacommons.org/licenses/odbl/" target="_blank" rel="noopener">ODbL</a>.</p>')
 
     with open(args.out, "w", encoding="utf-8") as handle:
-        handle.write(render_html(leads, is_demo, source, attribution))
+        handle.write(render_html(leads, is_demo, source, attribution, total_count))
 
     path = os.path.abspath(args.out)
     print(f"Built dashboard with {len(leads)} leads -> {path}")

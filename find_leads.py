@@ -306,6 +306,10 @@ def lead_score(place, niche):
     else:
         score += 0.1
 
+    # A public email = directly contactable -> a better, more actionable lead.
+    if place.get("email"):
+        score += 1
+
     return int(max(1, min(10, round(score))))
 
 
@@ -316,6 +320,7 @@ def build_row(place, niche, search_area):
         "business_name": display_name,
         "niche": niche,
         "phone": place.get("nationalPhoneNumber", ""),
+        "email": place.get("email", ""),
         "address": place.get("formattedAddress", ""),
         "rating": place.get("rating", ""),
         "review_count": place.get("userRatingCount", 0),
@@ -350,7 +355,7 @@ def save_and_summarize(leads, unique_checked, output_path, demo=False, n_states=
     leads.sort(key=lambda row: (row["lead_score"], row["review_count"]), reverse=True)
 
     fieldnames = [
-        "business_name", "niche", "phone", "address", "rating",
+        "business_name", "niche", "phone", "email", "address", "rating",
         "review_count", "google_maps_url", "website_status",
         "lead_score", "place_id", "search_area",
     ]
