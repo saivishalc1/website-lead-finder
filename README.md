@@ -47,9 +47,9 @@ the list** from it. The dashboard is one self-contained `dashboard.html` file
 - **Table _and_ Card views**, search, niche / state / **status** / score filters,
   a **Has-website** filter, sortable columns, click-to-call / click-to-email, and
   live pipeline KPIs.
-- **A per-lead Website column** — paste the link to the site you built for that
-  business (shows an *Open* link, persists, exports as `website_url`, and
-  auto-fills from a `website_url` column in your CSV).
+- **A per-lead Website column** — a read-only *Open* link to the site you built
+  for that business. Links come from a `website_url` column in your CSV (and are
+  included in **Export**), so they can't be changed by accident in the UI.
 - **Export** the current (filtered) view — pipeline included — back to a CSV, so
   your progress is portable between browsers and machines.
 - A **light / dark** theme that's remembered.

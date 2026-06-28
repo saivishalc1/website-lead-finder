@@ -134,9 +134,6 @@
   .noteinput{width:100%;min-width:150px;resize:vertical;min-height:34px;max-height:120px;padding:7px 9px;
              border:1px solid var(--line);border-radius:9px;font-size:12px;background:var(--panel2);color:var(--ink);font-family:inherit}
   .noteinput::placeholder{color:var(--muted)}
-  .sitewrap{display:flex;flex-direction:column;gap:5px;min-width:140px}
-  .siteinput{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:9px;font-size:12px;background:var(--panel2);color:var(--ink);font-family:inherit}
-  .siteinput::placeholder{color:var(--muted)}
 
   /* ---- card view ---- */
   .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px;padding:16px}
@@ -423,11 +420,10 @@ function ratingHtml(l){
     ? `<div class="rev">&#9733; ${esc(l.rating)}${l.reviews?` (${esc(l.reviews)})`:''}</div>` : "";
 }
 function noteInput(id){ return `<textarea class="noteinput" data-id="${esc(id)}" placeholder="Notes...">${esc(recOf(id).note||"")}</textarea>`; }
-function siteOf(l){ return recOf(l.id).site || l.site || ""; }
-function siteInput(l){
+function siteOf(l){ return l.site || ""; }   // link comes from the data/CSV; not editable in the UI
+function siteCell(l){
   const v=siteOf(l);
-  const open=v?`<a class="open" href="${esc(v)}" target="_blank" rel="noopener">Open &#8599;</a>`:"";
-  return `<div class="sitewrap"><input class="siteinput" data-id="${esc(l.id)}" type="url" placeholder="Paste site URL" value="${esc(v)}">${open}</div>`;
+  return v?`<a class="open" href="${esc(v)}" target="_blank" rel="noopener">Open &#8599;</a>`:"&mdash;";
 }
 
 function rowHtml(l){
@@ -440,7 +436,7 @@ function rowHtml(l){
     <td><div class="name">${esc(l.name)}</div><div class="sub">${esc(l.niche)}</div>${ratingHtml(l)}</td>
     <td class="hide-sm">${esc(l.loc)}</td>
     <td class="contact">${contactHtml(l)}</td>
-    <td class="hide-sm">${siteInput(l)}</td>
+    <td class="hide-sm">${siteCell(l)}</td>
     <td>${map}</td>
   </tr>`;
 }
@@ -460,7 +456,7 @@ function cardHtml(l){
     ${ratingHtml(l)}
     <div class="lc-contact">${contactHtml(l)}</div>
     ${noteInput(l.id)}
-    ${siteInput(l)}
+    ${siteCell(l)}
     <div class="lc-foot">
       <span>${statusSelect(l.id)}${whenLine(l.id)}</span>
       ${map}
@@ -538,18 +534,11 @@ document.addEventListener('change', e=>{
     saveSoon();
     renderStats();
     render();   // keeps the "last:" date, closed styling, pipeline + any status filter in sync
-  } else if(e.target.classList.contains('siteinput')){
-    setRec(e.target.getAttribute('data-id'),{site:e.target.value.trim()});
-    saveSoon();
-    render();   // refresh the "Open" link once they finish editing
   }
 });
 document.addEventListener('input', e=>{
   if(e.target.classList.contains('noteinput')){
     setRec(e.target.getAttribute('data-id'),{note:e.target.value});
-    saveSoon();
-  } else if(e.target.classList.contains('siteinput')){
-    setRec(e.target.getAttribute('data-id'),{site:e.target.value.trim()});
     saveSoon();
   }
 });
