@@ -200,6 +200,9 @@ PAGE_TEMPLATE = r"""<!DOCTYPE html>
   .noteinput{width:100%;min-width:150px;resize:vertical;min-height:34px;max-height:120px;padding:7px 9px;
              border:1px solid var(--line);border-radius:9px;font-size:12px;background:var(--panel2);color:var(--ink);font-family:inherit}
   .noteinput::placeholder{color:var(--muted)}
+  .sitewrap{display:flex;flex-direction:column;gap:5px;min-width:140px}
+  .siteinput{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:9px;font-size:12px;background:var(--panel2);color:var(--ink);font-family:inherit}
+  .siteinput::placeholder{color:var(--muted)}
 
   /* ---- card view ---- */
   .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px;padding:16px}
@@ -290,7 +293,7 @@ PAGE_TEMPLATE = r"""<!DOCTYPE html>
         <table>
           <thead><tr>
             <th>Status</th><th>Score</th><th>Business</th><th class="hide-sm">Location</th>
-            <th>Contact</th><th class="hide-sm">Notes</th><th>Map</th>
+            <th>Contact</th><th class="hide-sm">Notes</th><th class="hide-sm">Website</th><th>Map</th>
           </tr></thead>
           <tbody id="rows"></tbody>
         </table>
@@ -342,10 +345,10 @@ function loadOutreach(){
 let saveT=null;
 function saveOutreach(o){ o=o||outreach; try{localStorage.setItem(OUT_KEY,JSON.stringify(o));}catch(e){} }
 function saveSoon(){ clearTimeout(saveT); saveT=setTimeout(()=>saveOutreach(),250); }
-function recOf(id){ return outreach[id] || {status:"new",note:"",ts:""}; }
+function recOf(id){ return outreach[id] || {status:"new",note:"",ts:"",site:""}; }
 function setRec(id,patch){
-  const r=Object.assign({status:"new",note:"",ts:""}, outreach[id]||{}, patch);
-  if(r.status==="new" && !r.note){ delete outreach[id]; } else { outreach[id]=r; }
+  const r=Object.assign({status:"new",note:"",ts:"",site:""}, outreach[id]||{}, patch);
+  if(r.status==="new" && !r.note && !r.site){ delete outreach[id]; } else { outreach[id]=r; }
 }
 
 /* ---------------- helpers ---------------- */
@@ -414,17 +417,18 @@ function rowsToLeads(rows){
     if(!name && !phone) continue;
     const loc=pick(r,"search_area","location","city","address");
     const id=pick(r,"place_id","id") || (name+"|"+phone);
+    const site=pick(r,"website_url","website","site","built_site");
     out.push({
       id:id, name:name, niche:pick(r,"niche","category","industry"),
       loc:loc, phone:phone, email:pick(r,"email"),
       rating:pick(r,"rating","stars"), reviews:pick(r,"review_count","reviews","ratings"),
-      score:pick(r,"lead_score","score"),
+      score:pick(r,"lead_score","score"), site:site,
       maps:reMaps(name,loc,pick(r,"google_maps_url","maps","map","maps_url")),
     });
     // round-trip our own exported pipeline columns, if present
     const st=normStatus(pick(r,"status"));
     const nt=pick(r,"note","notes"), lc=pick(r,"last_contacted","contacted_on","date");
-    if(st || nt){ setRec(id,{status:st||"contacted",note:nt||"",ts:lc||""}); }
+    if(st || nt || site){ setRec(id,{status:st||"new",note:nt||"",ts:lc||"",site:site||""}); }
   }
   saveOutreach();
   return out;
@@ -484,6 +488,12 @@ function ratingHtml(l){
     ? `<div class="rev">&#9733; ${esc(l.rating)}${l.reviews?` (${esc(l.reviews)})`:''}</div>` : "";
 }
 function noteInput(id){ return `<textarea class="noteinput" data-id="${esc(id)}" placeholder="Notes...">${esc(recOf(id).note||"")}</textarea>`; }
+function siteOf(l){ return recOf(l.id).site || l.site || ""; }
+function siteInput(l){
+  const v=siteOf(l);
+  const open=v?`<a class="open" href="${esc(v)}" target="_blank" rel="noopener">Open &#8599;</a>`:"";
+  return `<div class="sitewrap"><input class="siteinput" data-id="${esc(l.id)}" type="url" placeholder="Paste site URL" value="${esc(v)}">${open}</div>`;
+}
 
 function rowHtml(l){
   const s=num(l.score), b=bucket(s), st=recOf(l.id).status||"new";
@@ -496,6 +506,7 @@ function rowHtml(l){
     <td class="hide-sm">${esc(l.loc)}</td>
     <td class="contact">${contactHtml(l)}</td>
     <td class="hide-sm">${noteInput(l.id)}</td>
+    <td class="hide-sm">${siteInput(l)}</td>
     <td>${map}</td>
   </tr>`;
 }
@@ -515,6 +526,7 @@ function cardHtml(l){
     ${ratingHtml(l)}
     <div class="lc-contact">${contactHtml(l)}</div>
     ${noteInput(l.id)}
+    ${siteInput(l)}
     <div class="lc-foot">
       <span>${statusSelect(l.id)}${whenLine(l.id)}</span>
       ${map}
@@ -533,7 +545,7 @@ function currentRows(){
     if(statusF && st!==statusF) return false;
     if(hide && (st==="won"||st==="lost")) return false;
     if(num(l.score)<minS) return false;
-    if(q){ const hay=(l.name+" "+l.phone+" "+(l.email||"")+" "+l.loc+" "+(recOf(l.id).note||"")).toLowerCase(); if(!hay.includes(q)) return false; }
+    if(q){ const hay=(l.name+" "+l.phone+" "+(l.email||"")+" "+l.loc+" "+(recOf(l.id).note||"")+" "+siteOf(l)).toLowerCase(); if(!hay.includes(q)) return false; }
     return true;
   });
   r.sort((a,b)=>{
@@ -568,7 +580,7 @@ function render(){
   }else{
     $('cardView').style.display="none"; $('tableView').style.display="";
     $('rows').innerHTML = r.length ? r.map(rowHtml).join("")
-      : `<tr><td colspan="7" class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><div>No matches. Try clearing a filter.</div></td></tr>`;
+      : `<tr><td colspan="8" class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><div>No matches. Try clearing a filter.</div></td></tr>`;
   }
   renderPipeline();
 }
@@ -590,12 +602,18 @@ document.addEventListener('change', e=>{
     saveSoon();
     renderStats();
     render();   // keeps the "last:" date, closed styling, pipeline + any status filter in sync
+  } else if(e.target.classList.contains('siteinput')){
+    setRec(e.target.getAttribute('data-id'),{site:e.target.value.trim()});
+    saveSoon();
+    render();   // refresh the "Open" link once they finish editing
   }
 });
 document.addEventListener('input', e=>{
   if(e.target.classList.contains('noteinput')){
-    const id=e.target.getAttribute('data-id');
-    setRec(id,{note:e.target.value});
+    setRec(e.target.getAttribute('data-id'),{note:e.target.value});
+    saveSoon();
+  } else if(e.target.classList.contains('siteinput')){
+    setRec(e.target.getAttribute('data-id'),{site:e.target.value.trim()});
     saveSoon();
   }
 });
@@ -654,11 +672,11 @@ window.addEventListener('drop',e=>{ e.preventDefault(); if(e.target.closest('#dr
 function csvCell(v){ v=String(v==null?"":v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
 $('exportBtn').addEventListener('click',()=>{
   const rows=currentRows();
-  const cols=["business_name","niche","phone","email","location","rating","review_count","lead_score","status","note","last_contacted","google_maps_url"];
+  const cols=["business_name","niche","phone","email","location","rating","review_count","lead_score","status","note","last_contacted","website_url","google_maps_url"];
   const lines=[cols.join(",")];
   rows.forEach(l=>{ const r=recOf(l.id);
     lines.push([l.name,l.niche,l.phone,l.email,l.loc,l.rating,l.reviews,l.score,
-                ST_LABEL[r.status||"new"],r.note||"",r.ts||"",l.maps].map(csvCell).join(","));
+                ST_LABEL[r.status||"new"],r.note||"",r.ts||"",siteOf(l),l.maps].map(csvCell).join(","));
   });
   const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8"});
   const a=document.createElement("a");
@@ -704,6 +722,7 @@ def render_html(leads, is_demo, source_label, attribution_html="", total_count=N
         "rating": r.get("rating", ""),
         "reviews": r.get("review_count", 0),
         "score": r.get("lead_score", 0),
+        "site": r.get("website_url", "") or r.get("website", ""),
         "maps": maps_link(r),
     } for r in leads]
 
