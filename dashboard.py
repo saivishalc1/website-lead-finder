@@ -276,6 +276,7 @@ PAGE_TEMPLATE = r"""<!DOCTYPE html>
         <option value="name">Name A-Z</option>
       </select>
       <label class="toggle"><input type="checkbox" id="hideClosed"> Hide won/lost</label>
+      <label class="toggle"><input type="checkbox" id="hasSite"> Has website</label>
       <div class="seg" role="group" aria-label="View">
         <button id="viewTable" class="on"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>Table</button>
         <button id="viewCards"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Cards</button>
@@ -293,7 +294,7 @@ PAGE_TEMPLATE = r"""<!DOCTYPE html>
         <table>
           <thead><tr>
             <th>Status</th><th>Score</th><th>Business</th><th class="hide-sm">Location</th>
-            <th>Contact</th><th class="hide-sm">Notes</th><th class="hide-sm">Website</th><th>Map</th>
+            <th>Contact</th><th class="hide-sm">Website</th><th>Map</th>
           </tr></thead>
           <tbody id="rows"></tbody>
         </table>
@@ -505,7 +506,6 @@ function rowHtml(l){
     <td><div class="name">${esc(l.name)}</div><div class="sub">${esc(l.niche)}</div>${ratingHtml(l)}</td>
     <td class="hide-sm">${esc(l.loc)}</td>
     <td class="contact">${contactHtml(l)}</td>
-    <td class="hide-sm">${noteInput(l.id)}</td>
     <td class="hide-sm">${siteInput(l)}</td>
     <td>${map}</td>
   </tr>`;
@@ -537,13 +537,15 @@ function cardHtml(l){
 /* ---------------- filtering + sorting ---------------- */
 function currentRows(){
   const q=$('q').value.trim().toLowerCase(), niche=$('niche').value, state=$('state').value,
-        statusF=$('status').value, minS=num($('minScore').value), sort=$('sort').value, hide=$('hideClosed').checked;
+        statusF=$('status').value, minS=num($('minScore').value), sort=$('sort').value,
+        hide=$('hideClosed').checked, hasSite=$('hasSite').checked;
   let r=LEADS.filter(l=>{
     if(niche && l.niche!==niche) return false;
     if(state && stateOf(l.loc)!==state) return false;
     const st=recOf(l.id).status||"new";
     if(statusF && st!==statusF) return false;
     if(hide && (st==="won"||st==="lost")) return false;
+    if(hasSite && !siteOf(l)) return false;
     if(num(l.score)<minS) return false;
     if(q){ const hay=(l.name+" "+l.phone+" "+(l.email||"")+" "+l.loc+" "+(recOf(l.id).note||"")+" "+siteOf(l)).toLowerCase(); if(!hay.includes(q)) return false; }
     return true;
@@ -580,7 +582,7 @@ function render(){
   }else{
     $('cardView').style.display="none"; $('tableView').style.display="";
     $('rows').innerHTML = r.length ? r.map(rowHtml).join("")
-      : `<tr><td colspan="8" class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><div>No matches. Try clearing a filter.</div></td></tr>`;
+      : `<tr><td colspan="7" class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><div>No matches. Try clearing a filter.</div></td></tr>`;
   }
   renderPipeline();
 }
@@ -619,7 +621,7 @@ document.addEventListener('input', e=>{
 });
 
 /* ---------------- toolbar wiring ---------------- */
-['q','niche','state','status','minScore','sort','hideClosed'].forEach(id=>{
+['q','niche','state','status','minScore','sort','hideClosed','hasSite'].forEach(id=>{
   $(id).addEventListener('input',render); $(id).addEventListener('change',render);
 });
 function setView(v){

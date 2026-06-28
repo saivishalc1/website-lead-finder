@@ -45,7 +45,11 @@ the list** from it. The dashboard is one self-contained `dashboard.html` file
   automatically. Everything is saved in your browser, so you can chip away at the
   list over days.
 - **Table _and_ Card views**, search, niche / state / **status** / score filters,
-  sortable columns, click-to-call / click-to-email, and live pipeline KPIs.
+  a **Has-website** filter, sortable columns, click-to-call / click-to-email, and
+  live pipeline KPIs.
+- **A per-lead Website column** — paste the link to the site you built for that
+  business (shows an *Open* link, persists, exports as `website_url`, and
+  auto-fills from a `website_url` column in your CSV).
 - **Export** the current (filtered) view — pipeline included — back to a CSV, so
   your progress is portable between browsers and machines.
 - A **light / dark** theme that's remembered.
@@ -60,6 +64,24 @@ python3 dashboard.py --no-open                      # build dashboard.html witho
 It writes the self-contained `dashboard.html` and opens it automatically — or,
 once built, just **double-click the file** (or drag a CSV onto it) any time.
 Works with zero installs.
+
+### Password-protect it for hosting (`lock.mjs`)
+
+`dashboard.html` embeds your real lead data, so don't put it on a public host as-is.
+To host it anywhere behind a single password — **no accounts, no login, no server** —
+encrypt it with `lock.mjs` (Node 18+). The output holds only ciphertext + an unlock
+screen; it's decrypted in the browser (AES-256-GCM, PBKDF2) when the right password
+is entered:
+
+```bash
+python3 dashboard.py --csv us_website_leads.csv --no-open          # build real dashboard.html
+LOCK_PASSWORD='your-strong-passphrase' node lock.mjs dashboard.html docs/leads.html
+```
+
+Now `docs/leads.html` is safe to host (e.g. GitHub Pages) — visitors get a password
+prompt, and the data is unreadable without it. Use a **strong** passphrase: anyone
+with the file can attempt an offline guess, so the password is the only thing
+protecting the data.
 
 ---
 
