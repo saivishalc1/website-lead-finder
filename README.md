@@ -33,8 +33,22 @@ A portion of the sample is deliberately given a website / too few reviews /
 
 ## 🖥️ See it as a website
 
-Turn the results into a clean, single-file web dashboard — search box, niche/state
-filters, sortable lead-score badges, and click-to-call links:
+Turn the results into a clean, single-file web dashboard — and actually **work
+the list** from it. The dashboard is one self-contained `dashboard.html` file
+(no server, no internet, no installs) with:
+
+- **Drag-and-drop CSV upload** — drop your own `us_website_leads.csv` straight
+  onto the page to view it. No need to re-run Python, and the file is remembered
+  on that device for next time.
+- **An outreach pipeline per lead** — set a status (New → Contacted → Follow-up
+  → Won / Lost), jot **notes**, and the **last-contacted date** is stamped
+  automatically. Everything is saved in your browser, so you can chip away at the
+  list over days.
+- **Table _and_ Card views**, search, niche / state / **status** / score filters,
+  sortable columns, click-to-call / click-to-email, and live pipeline KPIs.
+- **Export** the current (filtered) view — pipeline included — back to a CSV, so
+  your progress is portable between browsers and machines.
+- A **light / dark** theme that's remembered.
 
 ```bash
 python3 dashboard.py                                # sample data, opens in your browser
@@ -43,8 +57,9 @@ python3 dashboard.py --csv us_website_leads.csv     # use your REAL results
 python3 dashboard.py --no-open                      # build dashboard.html without opening
 ```
 
-It writes a self-contained `dashboard.html` (no server, no internet needed) and
-opens it automatically. Works with zero installs.
+It writes the self-contained `dashboard.html` and opens it automatically — or,
+once built, just **double-click the file** (or drag a CSV onto it) any time.
+Works with zero installs.
 
 ---
 
