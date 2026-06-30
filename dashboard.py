@@ -65,7 +65,7 @@ def generate_sample_leads(states_arg=None):
 # -----------------------------------------------------------------------------
 
 PAGE_TEMPLATE = r"""<!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="light"__PUBLICATTR__>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -214,6 +214,11 @@ PAGE_TEMPLATE = r"""<!DOCTYPE html>
   .empty{padding:44px 20px;text-align:center;color:var(--muted)}
   .empty svg{width:34px;height:34px;opacity:.4;margin-bottom:10px}
   .foot{color:var(--muted);font-size:12px;margin:16px 4px;line-height:1.65}
+
+  /* public mode: phone/email are stripped from the data; hide the Contact column/blocks */
+  html[data-public] thead th:nth-child(5){display:none}
+  html[data-public] td.contact{display:none}
+  html[data-public] .lc-contact{display:none}
 
   @media (max-width:820px){
     .stats{grid-template-columns:repeat(2,1fr)}
@@ -692,7 +697,7 @@ buildFilters(); renderStats(); setView(view); updateDropText();
 """
 
 
-def render_html(leads, is_demo, source_label, attribution_html="", total_count=None):
+def render_html(leads, is_demo, source_label, attribution_html="", total_count=None, public=False):
     """Turn the leads into the final HTML string."""
 
     def maps_link(r):
@@ -704,12 +709,12 @@ def render_html(leads, is_demo, source_label, attribution_html="", total_count=N
         return url
 
     slim = [{
-        "id": r.get("place_id", "") or (r.get("business_name", "") + "|" + r.get("phone", "")),
+        "id": r.get("place_id", "") or (r.get("business_name", "") + ("" if public else "|" + r.get("phone", ""))),
         "name": r.get("business_name", ""),
         "niche": r.get("niche", ""),
         "loc": r.get("search_area", "") or r.get("address", ""),
-        "phone": r.get("phone", ""),
-        "email": r.get("email", ""),
+        "phone": "" if public else r.get("phone", ""),
+        "email": "" if public else r.get("email", ""),
         "rating": r.get("rating", ""),
         "reviews": r.get("review_count", 0),
         "score": r.get("lead_score", 0),
@@ -727,6 +732,11 @@ def render_html(leads, is_demo, source_label, attribution_html="", total_count=N
         banner = ""
         footnote = "Verify a business actually has no website before pitching it."
 
+    if public:
+        banner = ('<div class="note">&#128274; <b>Public view</b> &mdash; business contact details '
+                  '(phone &amp; email) are not included. This is a showcase of the lead dashboard.</div>')
+        footnote = "Public view &mdash; contact details are not included."
+
     capnote = ""
     if total_count and total_count > len(leads):
         capnote = (f'<div class="note">Showing the top <b>{len(leads):,}</b> highest-scoring leads of '
@@ -740,6 +750,7 @@ def render_html(leads, is_demo, source_label, attribution_html="", total_count=N
     page = page.replace("__SOURCE__", html.escape(source_label))
     page = page.replace("__DATE__", datetime.date.today().isoformat())
     page = page.replace("__ATTRIBUTION__", attribution_html)
+    page = page.replace("__PUBLICATTR__", ' data-public="1"' if public else "")
     return page
 
 
@@ -755,6 +766,8 @@ def main():
     parser.add_argument("--no-open", action="store_true", help="Build the file but don't open a browser.")
     parser.add_argument("--max-rows", type=int, default=2000,
                         help="Max leads to embed in the page (top by score; default 2000).")
+    parser.add_argument("--public", action="store_true",
+                        help="Public build: strip phone/email from the embedded data (safe to host publicly).")
     args = parser.parse_args()
 
     if args.csv:
@@ -775,6 +788,9 @@ def main():
     if total_count > args.max_rows:        # keep the page fast for huge datasets
         leads = leads[:args.max_rows]
 
+    if args.public:
+        source = f"{total_count:,} local service businesses (contacts hidden)"
+
     attribution = ""
     if args.csv and "osm" in os.path.basename(args.csv).lower():
         attribution = ('<p class="foot">Business data &copy; '
@@ -783,7 +799,7 @@ def main():
                        '<a href="https://opendatacommons.org/licenses/odbl/" target="_blank" rel="noopener">ODbL</a>.</p>')
 
     with open(args.out, "w", encoding="utf-8") as handle:
-        handle.write(render_html(leads, is_demo, source, attribution, total_count))
+        handle.write(render_html(leads, is_demo, source, attribution, total_count, public=args.public))
 
     path = os.path.abspath(args.out)
     print(f"Built dashboard ({len(leads):,} of {total_count:,} leads shown) -> {path}")
